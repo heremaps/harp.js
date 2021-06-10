@@ -6,13 +6,17 @@
 
 import {
     equirectangularProjection,
+    hereTilingScheme,
     mercatorProjection,
+    mercatorTilingScheme,
     normalizedEquirectangularProjection,
     OrientedBox3,
     Projection,
     sphereProjection,
+    TilingScheme,
     Vector3Like,
-    webMercatorProjection
+    webMercatorProjection,
+    webMercatorTilingScheme
 } from "@here/harp-geoutils";
 
 import { Env } from "./Expr";
@@ -333,6 +337,29 @@ export function getProjectionName(projection: Projection): string | never {
     throw new Error("Unknown projection");
 }
 
+export function getTilingScheme(projectionName: string): TilingScheme | never {
+    switch (projectionName) {
+        case "mercator":
+            return mercatorTilingScheme;
+        case "webMercator":
+            return webMercatorTilingScheme;
+        case "normalizedEquirectangular":
+            return hereTilingScheme;
+        default:
+            throw new Error(`Unknown tilingScheme ${projectionName}`);
+    } // switch
+}
+
+export function getTilingSchemeName(tilingScheme: TilingScheme): string | never {
+    if (tilingScheme === mercatorTilingScheme) {
+        return "mercator";
+    } else if (tilingScheme === webMercatorTilingScheme) {
+        return "webMercator";
+    } else if (tilingScheme === hereTilingScheme) {
+        return "normalizedEquirectangular";
+    }
+    throw new Error("Unknown projection");
+}
 /**
  * @returns Feature id from the provided attribute map.
  * @internal

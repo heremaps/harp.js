@@ -7,6 +7,7 @@ import {
     DecodedTile,
     DecoderOptions,
     getProjectionName,
+    getTilingSchemeName,
     ITileDecoder,
     OptionsMap,
     RequestController,
@@ -14,7 +15,7 @@ import {
     WorkerDecoderProtocol,
     WorkerServiceProtocol
 } from "@here/harp-datasource-protocol";
-import { Projection, TileKey } from "@here/harp-geoutils";
+import { Projection, TileKey, TilingScheme } from "@here/harp-geoutils";
 
 import { ConcurrentWorkerSet } from "./ConcurrentWorkerSet";
 
@@ -99,6 +100,7 @@ export class WorkerBasedDecoder implements ITileDecoder {
         data: ArrayBufferLike,
         tileKey: TileKey,
         projection: Projection,
+        tilingScheme: TilingScheme,
         requestController?: RequestController
     ): Promise<DecodedTile> {
         const tileKeyCode = tileKey.mortonCode();
@@ -107,7 +109,8 @@ export class WorkerBasedDecoder implements ITileDecoder {
             type: WorkerDecoderProtocol.Requests.DecodeTileRequest,
             tileKey: tileKeyCode,
             data,
-            projection: getProjectionName(projection)
+            projection: getProjectionName(projection),
+            tilingScheme: getTilingSchemeName(tilingScheme)
         };
 
         const transferList = data instanceof ArrayBuffer ? [data] : undefined;

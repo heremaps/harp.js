@@ -12,7 +12,7 @@ import {
 } from "@here/harp-datasource-protocol";
 import { MapEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
 import { AttrEvaluationContext } from "@here/harp-datasource-protocol/lib/TechniqueAttr";
-import { Projection, TileKey } from "@here/harp-geoutils";
+import { Projection, TileKey, TilingScheme, webMercatorTilingScheme } from "@here/harp-geoutils";
 import {
     ThemedTileDecoder,
     TileDecoderService,
@@ -23,6 +23,7 @@ import * as THREE from "three";
 
 import { GeoJsonDataAdapter } from "./adapters/geojson/GeoJsonDataAdapter";
 import { GeoJsonVtDataAdapter } from "./adapters/geojson-vt/GeoJsonVtDataAdapter";
+import { OcmDataAdapter } from "./adapters/ocm/OcmDataAdapter";
 import { OmvDataAdapter } from "./adapters/omv/OmvDataAdapter";
 import { DataAdapter } from "./DataAdapter";
 import { DecodeInfo } from "./DecodeInfo";
@@ -58,6 +59,7 @@ export class VectorTileDataProcessor implements IGeometryProcessor {
         private readonly m_showMissingTechniques: boolean,
         private readonly m_dataFilter?: OmvFeatureFilter,
         private readonly m_featureModifiers?: OmvFeatureModifier[],
+        private readonly m_tilingScheme: TilingScheme = webMercatorTilingScheme,
         private readonly m_gatherFeatureAttributes = false,
         private readonly m_skipShortLabels = true,
         private readonly m_storageLevelOffset = 0,
@@ -78,6 +80,7 @@ export class VectorTileDataProcessor implements IGeometryProcessor {
 
         this.m_dataAdapters.push(new GeoJsonVtDataAdapter(this, dataPreFilter, logger));
         this.m_dataAdapters.push(new GeoJsonDataAdapter(this, dataPreFilter, logger));
+        this.m_dataAdapters.push(new OcmDataAdapter(this, logger));
     }
 
     get storageLevelOffset() {
@@ -113,6 +116,7 @@ export class VectorTileDataProcessor implements IGeometryProcessor {
             dataAdapter.id,
             this.m_projection,
             tileKey,
+            this.m_tilingScheme,
             this.m_storageLevelOffset
         );
 
@@ -314,7 +318,8 @@ export class VectorTileDecoder extends ThemedTileDecoder {
         data: ArrayBufferLike,
         tileKey: TileKey,
         styleSetEvaluator: StyleSetEvaluator,
-        projection: Projection
+        projection: Projection,
+        tilingScheme: TilingScheme
     ): Promise<DecodedTile> {
         const startTime = PerformanceTimer.now();
 
@@ -324,6 +329,7 @@ export class VectorTileDecoder extends ThemedTileDecoder {
             this.m_showMissingTechniques,
             this.m_featureFilter,
             this.m_featureModifiers,
+            tilingScheme,
             this.m_gatherFeatureAttributes,
             this.m_skipShortLabels,
             this.m_storageLevelOffset,

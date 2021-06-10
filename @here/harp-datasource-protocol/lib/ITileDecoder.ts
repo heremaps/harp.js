@@ -3,7 +3,7 @@
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Projection, TileKey } from "@here/harp-geoutils";
+import { Projection, TileKey, TilingScheme } from "@here/harp-geoutils";
 
 import { DecodedTile } from "./DecodedTile";
 import { Definitions, StylePriority, StyleSet } from "./Theme";
@@ -61,6 +61,7 @@ export interface ITileDecoder {
         data: ArrayBufferLike | {},
         tileKey: TileKey,
         projection: Projection,
+        tilingScheme?: TilingScheme,
         requestController?: RequestController
     ): Promise<DecodedTile | undefined>;
 

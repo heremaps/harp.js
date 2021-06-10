@@ -11,7 +11,8 @@ import {
     mercatorProjection,
     sphereProjection,
     TileKey,
-    webMercatorProjection
+    webMercatorProjection,
+    webMercatorTilingScheme
 } from "@here/harp-geoutils";
 import { ThemeLoader } from "@here/harp-mapview";
 import { getTestResourceUrl } from "@here/harp-test-utils/index.node";
@@ -147,7 +148,13 @@ export function createOMVDecoderPerformanceTest(
             await measurePerformanceSync(counterName, repeats, function () {
                 for (const [tileKey, tileData] of omvTiles) {
                     const decoder = new OmvDataAdapter(geometryProcessor, undefined);
-                    const decodeInfo = new DecodeInfo("profiler", mercatorProjection, tileKey, 0);
+                    const decodeInfo = new DecodeInfo(
+                        "profiler",
+                        mercatorProjection,
+                        tileKey,
+                        webMercatorTilingScheme,
+                        0
+                    );
                     decoder.process(tileData, decodeInfo);
                 }
             });

@@ -9,7 +9,12 @@ import {
     OptionsMap,
     WorkerServiceProtocol
 } from "@here/harp-datasource-protocol";
-import { EarthConstants, TileKey, webMercatorTilingScheme } from "@here/harp-geoutils";
+import {
+    EarthConstants,
+    TileKey,
+    TilingScheme,
+    webMercatorTilingScheme
+} from "@here/harp-geoutils";
 import { CopyrightInfo, CopyrightProvider, DataSourceOptions, Tile } from "@here/harp-mapview";
 import {
     DataProvider,
@@ -192,6 +197,7 @@ export type OmvWithRestClientParams = VectorTileDataSourceParameters & OmvRestCl
 
 export type OmvWithCustomDataProvider = VectorTileDataSourceParameters & {
     dataProvider: DataProvider;
+    tilingScheme?: TilingScheme;
 };
 
 let missingOmvDecoderServiceInfoEmitted: boolean = false;
@@ -260,8 +266,8 @@ function completeDataSourceParameters(
     }
 
     return {
-        ...params,
         tilingScheme: webMercatorTilingScheme,
+        ...params,
         dataProvider: getDataProvider(params)
     };
 }

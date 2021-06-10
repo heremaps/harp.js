@@ -110,6 +110,7 @@ export namespace WorkerDecoderProtocol {
         tileKey: number;
         data: ArrayBufferLike;
         projection: string;
+        tilingScheme?: string;
     }
 
     /**

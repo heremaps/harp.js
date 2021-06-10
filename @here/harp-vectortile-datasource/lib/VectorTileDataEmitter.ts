@@ -287,7 +287,9 @@ export class VectorTileDataEmitter {
 
         // get the point positions (in tile space) that are inside the tile bounds.
         const tilePositions = geometry.filter(p => {
-            return p.x >= 0 && p.x <= xextent && p.y >= 0 && p.y <= yextent;
+            // TODO: CHECK WHY HALF OF THE TILE IS FILTERED OUT.
+            //return p.x >= 0 && p.x <= xextent && p.y >= 0 && p.y <= yextent;
+            return true;
         });
 
         if (tilePositions.length === 0) {
@@ -841,7 +843,8 @@ export class VectorTileDataEmitter {
 
             const computeTexCoords = this.getComputeTexCoordsFunc(technique, objectBounds);
 
-            const shouldClipPolygons = isPolygon && !isExtruded;
+            // TODO: CHECK WHY HALF OF THE TILE IS FILTERED OUT.
+            const shouldClipPolygons = false; //isPolygon && !isExtruded;
 
             for (const polygon of geometry) {
                 const rings: Ring[] = [];
@@ -857,9 +860,11 @@ export class VectorTileDataEmitter {
                     if (shouldClipPolygons) {
                         // Quick test to avoid clipping if all the coords
                         // of the current polygon are inside the tile bounds.
+
                         const hasCoordsOutsideTileBounds = ringCoords.some(
                             p => p.x < 0 || p.x > extents || p.y < 0 || p.y > extents
                         );
+
                         if (hasCoordsOutsideTileBounds) {
                             ringCoords = clipPolygon(ringCoords, extents);
                         }

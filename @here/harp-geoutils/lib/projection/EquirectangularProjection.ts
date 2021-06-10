@@ -159,6 +159,9 @@ class EquirectangularProjection extends Projection {
  */
 export const normalizedEquirectangularProjection: Projection = new EquirectangularProjection(1);
 
+export const pduEquirectangularProjection: Projection = new EquirectangularProjection(
+    Math.pow(2, 32)
+);
 /**
  * Equirectangular {@link Projection} used to convert geo coordinates to world coordinates and vice
  * versa.

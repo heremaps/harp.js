@@ -73,6 +73,7 @@ export class DecodeInfo {
         readonly adapterId: string,
         readonly targetProjection: Projection,
         readonly tileKey: TileKey,
+        readonly tilingScheme: TilingScheme = webMercatorTilingScheme,
         readonly storageLevelOffset: number = 0
     ) {
         this.geoBox = this.tilingScheme.getGeoBox(tileKey);
@@ -82,21 +83,9 @@ export class DecodeInfo {
         this.tileBounds.getSize(this.tileSize);
         this.tileSizeOnScreen = 256 * Math.pow(2, -this.storageLevelOffset);
 
-        this.columnCount = webMercatorTilingScheme.subdivisionScheme.getLevelDimensionX(
-            this.tileKey.level
-        );
+        this.columnCount = tilingScheme.subdivisionScheme.getLevelDimensionX(this.tileKey.level);
 
-        this.rowCount = webMercatorTilingScheme.subdivisionScheme.getLevelDimensionY(
-            this.tileKey.level
-        );
-    }
-
-    /**
-     * The [[TilingScheme]] of the OMV data, currenly it is defined
-     * to be [[webMercatorTilingScheme]].
-     */
-    get tilingScheme(): TilingScheme {
-        return webMercatorTilingScheme;
+        this.rowCount = tilingScheme.subdivisionScheme.getLevelDimensionY(this.tileKey.level);
     }
 
     /**

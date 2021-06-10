@@ -11,7 +11,7 @@ import {
     TileInfo
 } from "@here/harp-datasource-protocol";
 import { StyleSetEvaluator, StyleSetOptions } from "@here/harp-datasource-protocol/index-decoder";
-import { Projection, TileKey } from "@here/harp-geoutils";
+import { Projection, TileKey, TilingScheme, webMercatorTilingScheme } from "@here/harp-geoutils";
 import { LoggerManager } from "@here/harp-utils";
 
 const logger = LoggerManager.instance.create("ThemedTileDecoder");
@@ -37,14 +37,21 @@ export abstract class ThemedTileDecoder implements ITileDecoder {
     decodeTile(
         data: ArrayBufferLike,
         tileKey: TileKey,
-        projection: Projection
+        projection: Projection,
+        tilingScheme: TilingScheme = webMercatorTilingScheme
     ): Promise<DecodedTile | undefined> {
         if (this.m_styleSetEvaluator === undefined) {
             logger.info("cannot decode tile, as there is not style available");
             return Promise.resolve(undefined);
         }
 
-        return this.decodeThemedTile(data, tileKey, this.m_styleSetEvaluator, projection);
+        return this.decodeThemedTile(
+            data,
+            tileKey,
+            this.m_styleSetEvaluator,
+            projection,
+            tilingScheme
+        );
     }
 
     getTileInfo(
@@ -81,6 +88,7 @@ export abstract class ThemedTileDecoder implements ITileDecoder {
         data: ArrayBufferLike | {},
         tileKey: TileKey,
         styleSetEvaluator: StyleSetEvaluator,
-        projection: Projection
+        projection: Projection,
+        tilingScheme: TilingScheme
     ): Promise<DecodedTile>;
 }

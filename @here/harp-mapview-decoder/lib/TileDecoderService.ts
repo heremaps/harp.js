@@ -8,11 +8,12 @@ import {
     addBuffersToTransferList,
     BufferAttribute,
     getProjection,
+    getTilingScheme,
     InterleavedBufferAttribute,
     ITileDecoder,
     WorkerDecoderProtocol
 } from "@here/harp-datasource-protocol";
-import { TileKey } from "@here/harp-geoutils";
+import { TileKey, webMercatorTilingScheme } from "@here/harp-geoutils";
 import { LoggerManager } from "@here/harp-utils";
 
 import { WorkerService, WorkerServiceResponse } from "./WorkerService";
@@ -87,8 +88,16 @@ export class TileDecoderService extends WorkerService {
     ): Promise<WorkerServiceResponse> {
         const tileKey = TileKey.fromMortonCode(request.tileKey);
         const projection = getProjection(request.projection);
+        const tilingScheme = request.tilingScheme
+            ? getTilingScheme(request.tilingScheme)
+            : webMercatorTilingScheme;
 
-        const decodedTile = await this.m_decoder.decodeTile(request.data, tileKey, projection);
+        const decodedTile = await this.m_decoder.decodeTile(
+            request.data,
+            tileKey,
+            projection,
+            tilingScheme
+        );
 
         const transferList: ArrayBufferLike[] = [];
 

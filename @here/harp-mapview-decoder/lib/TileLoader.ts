@@ -139,7 +139,13 @@ export class TileLoader extends BaseTileLoader {
 
         const dataSource = this.dataSource;
         this.tileDecoder
-            .decodeTile(payload, this.tileKey, dataSource.projection, requestController)
+            .decodeTile(
+                payload,
+                this.tileKey,
+                dataSource.projection,
+                dataSource.getTilingScheme(),
+                requestController
+            )
             .then(decodedTile => {
                 if (requestController.signal.aborted) {
                     // our flow is cancelled, silently return
