@@ -57,11 +57,12 @@ interface GeoJsonMultiPolygonGeometry {
 
 interface GeoJsonFeature {
     id?: string;
+    type: "Feature";
     properties: ValueMap;
     geometry: GeoJsonGeometry;
 }
 
-interface GeoJsonFeatureCollection {
+export interface GeoJsonFeatureCollection {
     type: "FeatureCollection";
     features: GeoJsonFeature[];
 }
@@ -164,12 +165,12 @@ export class GeoJsonDataAdapter implements DataAdapter {
     process(
         featureCollection: GeoJsonFeatureCollection,
         decodeInfo: DecodeInfo,
-        geometryProcessor: IGeometryProcessor
+        geometryProcessor: IGeometryProcessor,
+        layer: string = "geojson"
     ): void {
         if (!Array.isArray(featureCollection.features) || featureCollection.features.length === 0) {
             return;
         }
-        const layer = "geojson";
 
         for (const feature of featureCollection.features) {
             switch (feature.geometry.type) {
