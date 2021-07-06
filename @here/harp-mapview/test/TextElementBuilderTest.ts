@@ -29,6 +29,7 @@ describe("TextElementBuilder", function () {
         getLayoutStyle: () => layoutStyle
     } as any) as TileTextStyleCache;
     const dataSourceName = "anonymous";
+    const dataSourceOrder = 0;
 
     function buildPoiTechnique(properties: {}): PoiTechnique & IndexedTechniqueParams {
         return { name: "labeled-icon", _index: 0, _styleSetIndex: 0, ...properties };
@@ -48,8 +49,8 @@ describe("TextElementBuilder", function () {
         const builder = new TextElementBuilder(env, styleCache, 0);
         const label1 = builder
             .withTechnique(textTechnique)
-            .build("one", new Vector3(), 0, dataSourceName);
-        const label2 = builder.build("two", new Vector3(), 0, dataSourceName);
+            .build("one", new Vector3(), 0, dataSourceName, dataSourceOrder);
+        const label2 = builder.build("two", new Vector3(), 0, dataSourceName, dataSourceOrder);
 
         expect(label1?.priority).equals(label2?.priority).and.equals(textTechnique.priority);
     });
@@ -62,8 +63,8 @@ describe("TextElementBuilder", function () {
         const label1 = builder
             .withTechnique(poiTechnique)
             .withIcon(iconName, shieldGroupIndex)
-            .build("one", new Vector3(), 0, dataSourceName);
-        const label2 = builder.build("two", new Vector3(), 0, dataSourceName);
+            .build("one", new Vector3(), 0, dataSourceName, dataSourceOrder);
+        const label2 = builder.build("two", new Vector3(), 0, dataSourceName, dataSourceOrder);
 
         expect(label1.poiInfo?.imageTextureName)
             .equals(label2.poiInfo?.imageTextureName)
@@ -83,10 +84,12 @@ describe("TextElementBuilder", function () {
             textReserveSpace: true
         });
         const builder = new TextElementBuilder(env, styleCache, 0);
-        const poi = builder.withTechnique(poiTechnique).build("", new Vector3(), 0, dataSourceName);
+        const poi = builder
+            .withTechnique(poiTechnique)
+            .build("", new Vector3(), 0, dataSourceName, dataSourceOrder);
         const lineMarker = builder
             .withTechnique(lineMarkerTechnique)
-            .build("", new Vector3(), 0, dataSourceName);
+            .build("", new Vector3(), 0, dataSourceName, dataSourceOrder);
 
         expect(poi.mayOverlap).equals(poiTechnique.textMayOverlap);
         expect(poi.reserveSpace).equals(poiTechnique.textReserveSpace);
@@ -99,7 +102,7 @@ describe("TextElementBuilder", function () {
         const poi = new TextElementBuilder(env, styleCache, 0)
             .withTechnique(poiTechnique)
             .withIcon(undefined)
-            .build("", new Vector3(), 0, dataSourceName);
+            .build("", new Vector3(), 0, dataSourceName, dataSourceOrder);
         expect(poi.poiInfo).undefined;
     });
 
@@ -117,7 +120,7 @@ describe("TextElementBuilder", function () {
         const poi = new TextElementBuilder(env, styleCache, 0)
             .withTechnique(poiTechnique)
             .withIcon("")
-            .build("", new Vector3(), 0, dataSourceName);
+            .build("", new Vector3(), 0, dataSourceName, dataSourceOrder);
         expect(poi.minZoomLevel).equals(Math.min(iconMinZoomLevel, textMinZoomLevel));
         expect(poi.maxZoomLevel).equals(Math.max(iconMaxZoomLevel, textMaxZoomLevel));
     });
@@ -127,7 +130,7 @@ describe("TextElementBuilder", function () {
         const poi = new TextElementBuilder(env, styleCache, 0)
             .withTechnique(poiTechnique)
             .withIcon("dummy")
-            .build("", new Vector3(), 0, dataSourceName);
+            .build("", new Vector3(), 0, dataSourceName, dataSourceOrder);
         expect(poi.renderOrder)
             .equals(poi.poiInfo?.renderOrder)
             .and.equals(poiTechnique.renderOrder);
@@ -139,7 +142,7 @@ describe("TextElementBuilder", function () {
         const poi = new TextElementBuilder(env, styleCache, baseRenderOrder)
             .withTechnique(poiTechnique)
             .withIcon("dummy")
-            .build("", new Vector3(), 0, dataSourceName);
+            .build("", new Vector3(), 0, dataSourceName, dataSourceOrder);
         expect(poi.renderOrder)
             .equals(poi.poiInfo?.renderOrder)
             .and.equals(

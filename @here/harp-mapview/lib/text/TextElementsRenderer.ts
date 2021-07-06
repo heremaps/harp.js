@@ -703,6 +703,7 @@ export class TextElementsRenderer {
                 featureId: textElement.featureId,
                 userData: textElement.userData,
                 dataSourceName: textElement.dataSourceName,
+                dataSourceOrder: textElement.dataSourceOrder,
                 text: textElement.text
             };
 

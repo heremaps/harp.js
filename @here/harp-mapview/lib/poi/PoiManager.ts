@@ -382,6 +382,7 @@ export class PoiManager {
                 positionArray,
                 tile.offset,
                 tile.dataSource.name,
+                tile.dataSource.dataSourceOrder,
                 getAttributes(poiGeometry)
             );
 
@@ -408,6 +409,7 @@ export class PoiManager {
                     getPosition(positions, worldOffsetX, i),
                     tile.offset,
                     tile.dataSource.name,
+                    tile.dataSource.dataSourceOrder,
                     getAttributes(poiGeometry, i),
                     undefined,
                     offsetDirection
