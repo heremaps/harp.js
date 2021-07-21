@@ -14,6 +14,104 @@ import { MapViewUtils } from "./Utils";
 
 const epsilon = 0.000001;
 
+namespace SphericalProj {
+    const tmpVectors: THREE.Vector3[] = [new THREE.Vector3(), new THREE.Vector3()];
+
+    /**
+     * Calculate the horizon distance from a point above a sphere's surface.
+     *
+     * @remarks
+     * Returns zero if point is below surface or only very slightly above surface of sphere.
+     * @see https://en.wikipedia.org/wiki/Horizon#Derivation
+     * @param d - Distance from point to center of sphere.
+     * @param r - Radius of sphere.
+     */
+    function getHorizonDistance(d: number, r: number): number {
+        // There may be situations when maximum elevation still remains below sea level
+        // (elevation < 0) or it is negligible (elevation ~ epsilon)
+        return d - r < epsilon ? 0 : Math.sqrt(d * d - r * r);
+    }
+
+    /**
+     * Calculate furthest visible distance from camera position projected on eye direction.
+     *
+     * @remarks
+     * Furthest visible distance is assumed to be distance from camera to horizon
+     * plus distance from elevated geometry to horizon(so that high objects behind horizon
+     * remain visible).
+     * @see https://en.wikipedia.org/wiki/Horizon#Objects_above_the_horizon
+     * @param d - Distance from camera to origin.
+     * @param minR - Min sphere radius.
+     * @param maxR - Max sphere radius.
+     * @param alpha - Angle between camera eye vector and tangent.
+     */
+    export function getFarDistanceFromElevatedHorizon(
+        camera: THREE.PerspectiveCamera,
+        d: number,
+        minR: number,
+        maxR: number
+    ): number {
+        //         , - ~ ~ ~ - ,
+        //     , '               ' ,        E
+        //   ,           .           ,    . ' far + elev
+        //  ,            .   maxR    , '   /
+        // ,             .     ,  '    ,  /
+        // ,             . O '         , / te
+        // ,             | .           ,/
+        //  ,            |   . minR   ,/
+        //   ,           |      .    ,
+        //     ,         |        , '_____ far
+        //       ' -_, _ | _ ,  ' / T (Tangent point = Horizon)
+        //     near      |  eye   /
+        //             d |  +   / t
+        //               | +  /
+        //               |+ /
+        //               C ---> up
+
+        // Compute angle between camera eye vector and tangent in camera's up direction.
+        const normalToTanAngle = Math.asin(minR / d);
+        const eyeToTanAngle = Math.abs(normalToTanAngle - SphericalProj.getCameraPitch(camera));
+
+        const t = getHorizonDistance(d, minR);
+
+        // Because we would like to see elevated geometry that may be visible beyond
+        // the tangent point on ground surface, we need to extend viewing distance along
+        // the tangent line by te (see graph above).
+        const te = getHorizonDistance(maxR, minR);
+
+        // Project CE vector(length t + te) onto eye vector to get far distance.
+        const far = Math.cos(eyeToTanAngle) * (t + te);
+
+        return far;
+    }
+
+    /**
+     * Computes the far plane given the point where the upper right frustum edge intersects with
+     * the earth's sphere projected along the camera's view direction.
+     * @param worldSpaceIntersection - Furthest intersection point between frustum an sphere.
+     * @param camera - The camera.
+     * @returns Camera pitch.
+     */
+    export function getFarPlaneBasedOnFovIntersection(
+        worldSpaceIntersection: THREE.Vector3,
+        camera: THREE.PerspectiveCamera
+    ): number {
+        const toIntersection = tmpVectors[0].copy(worldSpaceIntersection).sub(camera.position);
+        return toIntersection.dot(camera.getWorldDirection(tmpVectors[1]));
+    }
+
+    /**
+     * Calculate angle between look at and surface normal at camera position.
+     * @param camera - The camera.
+     * @returns Camera pitch.
+     */
+    export function getCameraPitch(camera: THREE.PerspectiveCamera): number {
+        const camToOriginDir = tmpVectors[0].copy(camera.position).negate().normalize();
+        const cosPitch = camToOriginDir.dot(camera.getWorldDirection(tmpVectors[1]));
+        return Math.acos(THREE.MathUtils.clamp(cosPitch, -1.0, 1.0));
+    }
+}
+
 export interface ClipPlanesEvaluator {
     /**
      * Minimum elevation to be rendered, values beneath the sea level are negative.
@@ -240,15 +338,6 @@ export class TopViewClipPlanesEvaluator extends ElevationBasedClipPlanesEvaluato
         return this.m_minimumViewRange;
     }
 
-    /**
-     * Calculate camera altitude (closest distance) to ground level in world units.
-     * @param camera -
-     * @param projection -
-     */
-    protected getCameraAltitude(camera: THREE.Camera, projection: Projection): number {
-        return projection.groundDistance(camera.position);
-    }
-
     protected evaluateDistancePlanarProj(
         camera: THREE.Camera,
         projection: Projection,
@@ -260,7 +349,7 @@ export class TopViewClipPlanesEvaluator extends ElevationBasedClipPlanesEvaluato
         let farPlane: number = this.nearMin * this.farMaxRatio;
 
         // Calculate distance to closest point on the ground.
-        const groundDistance = this.getCameraAltitude(camera, projection);
+        const groundDistance = projection.groundDistance(camera.position);
         const farMax = groundDistance * this.farMaxRatio;
         // We could at least try to keep margins along the eye vector (center of the view) in
         // tact with pitch angle changes, but this does not solve all tilt angle problems,
@@ -298,7 +387,7 @@ export class TopViewClipPlanesEvaluator extends ElevationBasedClipPlanesEvaluato
         // The near plane calculus is quite straight forward and works the same as for planar
         // projections. We simply search for the closest point of the ground just above
         // the camera, then we apply margin (elevation) to it along the sphere surface normal:
-        const cameraAltitude = this.getCameraAltitude(camera, projection);
+        const cameraAltitude = projection.groundDistance(camera.position);
         nearPlane = cameraAltitude - this.maxElevation;
 
         // Far plane calculation requires different approaches depending from camera projection:
@@ -336,7 +425,8 @@ export class TopViewClipPlanesEvaluator extends ElevationBasedClipPlanesEvaluato
                 );
             }
 
-            const farTangent = this.getTangentBasedFarPlane(cam, d, r, alpha);
+            const maxR = r + this.maxElevation;
+            const farTangent = SphericalProj.getFarDistanceFromElevatedHorizon(cam, d, r, maxR);
             farPlane =
                 halfFovAngle > alpha
                     ? farTangent
@@ -366,81 +456,6 @@ export class TopViewClipPlanesEvaluator extends ElevationBasedClipPlanesEvaluato
             maximum: farMax
         };
         return viewRanges;
-    }
-
-    /**
-     * Calculate distance from a point to the tangent point of a sphere.
-     *
-     * @remarks
-     * Returns zero if point is below surface or only very slightly above surface of sphere.
-     * @param d - Distance from point to center of sphere
-     * @param r - Radius of sphere
-     */
-    protected getTangentDistance(d: number, r: number): number {
-        // There may be situations when maximum elevation still remains below sea level
-        // (elevation < 0) or it is negligible (elevation ~ epsilon)
-        if (d - r < epsilon) {
-            return 0;
-        }
-
-        // The distance to tangent point may be described as:
-        // t = sqrt(d^2 - r^2)
-        return Math.sqrt(d * d - r * r);
-    }
-
-    /**
-     * Calculate far plane depending on furthest visible distance from camera position.
-     *
-     * @remarks
-     * Furthest visible distance is assumed to be distance from camera to horizon
-     * plus distance from elevated geometry to horizon(so that high objects behind horizon
-     * remain visible).
-     * @param camera - The camera of the mapview
-     * @param d - Distance from camera to origin
-     * @param r - Radius of earth
-     * @param alpha - Angle between camera eye vector and tangent
-     */
-    protected getTangentBasedFarPlane(
-        camera: THREE.PerspectiveCamera,
-        d: number,
-        r: number,
-        alpha: number
-    ): number {
-        // Find tangent point intersection distance
-        //         , - ~ ~ ~ - ,
-        //     , '               ' ,        E
-        //   ,           .           ,    . ' far + elev
-        //  ,            .   r + e   , '   /
-        // ,             .     ,  '    ,  /
-        // ,             . O '         , / te
-        // ,             | .           ,/
-        //  ,            |   .  r     ,/
-        //   ,           |      .    ,
-        //     ,         |        , '_____ far
-        //       ' -_, _ | _ ,  ' / T
-        //     near      |      /
-        //               |    / t
-        //             d |  /
-        //               |/
-        //               C
-        const t = this.getTangentDistance(d, r);
-
-        // Because we would like to see elevated geometry that may be visible beyond
-        // the tangent point on ground surface, we need to extend viewing distance along
-        // the tangent line by te (see graph above).
-        const te = this.getTangentDistance(r + this.maxElevation, r);
-
-        // Next step is to project CE vector(length t + te) onto camera eye (forward) vector
-        // to get maximum camera far plane distance.
-        //
-        // Knowing that:
-        // tangentVec.dot(cameraFwdVec) = cos(alpha) * len(tangentVec) * len(cameraFwdVec).
-        // where:
-        // ||cameraFwdVec|| == 1 ^ ||tangentVec|| == t + te
-        // Formula simplifies to:
-        const far = Math.cos(alpha) * (t + te);
-
-        return far;
     }
 
     protected getFovBasedFarPlane(
@@ -495,7 +510,7 @@ export class TopViewClipPlanesEvaluator extends ElevationBasedClipPlanesEvaluato
         // potentially be behind the intersection ray's origin (camera position).
         if (cta < 0) {
             // Intersection points are behind camera, camera looks in wrong direction.
-            const groundDistance = this.getCameraAltitude(camera, projection);
+            const groundDistance = projection.groundDistance(camera.position);
             // Setup far plane to maximum distance.
             return groundDistance * this.farMaxRatio;
         }
@@ -577,7 +592,7 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
      * @param camera - The [[THREE.Camera]] instance in use,
      * @param projection - The geo-projection used to convert geographic to world coordinates.
      */
-    protected getFrustumGroundIntersectionDist(
+    private getFrustumGroundIntersectionDist(
         camera: THREE.Camera,
         projection: Projection
     ): { top: number; bottom: number } {
@@ -623,7 +638,7 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
         // ground elevations, which is done by simply offsetting camera altitude, as it is
         // opposite to elevating ground level.
         const halfPiLimit = Math.PI / 2 - epsilon;
-        const cameraAltitude = this.getCameraAltitude(camera, projection);
+        const cameraAltitude = projection.groundDistance(camera.position);
         const cameraTilt = MapViewUtils.extractCameraTilt(camera, projection);
         // Angle between z and c2
         let topAngleRad: number;
@@ -634,12 +649,11 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
         // Top plane origin altitude
         let z2: number;
         // For perspective projection:
-        if (camera.type === "PerspectiveCamera") {
-            const cam = (camera as any) as THREE.PerspectiveCamera;
+        if (camera instanceof THREE.PerspectiveCamera) {
             // Angle between z and c2, note, the fov is vertical, otherwise we would need to
             // translate it using aspect ratio:
             // Half fov angle in radians
-            const halfFovAngle = THREE.MathUtils.degToRad(cam.fov / 2);
+            const halfFovAngle = THREE.MathUtils.degToRad(camera.fov / 2);
             topAngleRad = THREE.MathUtils.clamp(
                 cameraTilt + halfFovAngle,
                 -halfPiLimit,
@@ -654,6 +668,7 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
         }
         // For orthographic projection:
         else {
+            assert(camera instanceof THREE.OrthographicCamera, "Unsupported camera type.");
             const cam = (camera as any) as THREE.OrthographicCamera;
             // For orthogonal camera projections we may simply ignore FOV and use 0 for FOV
             // the top/bottom planes are simply parallel to the eye vector:
@@ -702,12 +717,11 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
         // Project clipping plane distances for the top/bottom frustum planes (edges), but
         // only if we deal with perspective camera type, this step is not required
         // for orthographic projections, cause all clip planes are parallel to eye vector.
-        if (camera.type === "PerspectiveCamera") {
-            const cam = camera as THREE.PerspectiveCamera;
+        if (camera instanceof THREE.PerspectiveCamera) {
             // Angle between z and c2, note, the fov is vertical, otherwise we would need to
             // translate it using aspect ratio:
             // Half fov angle in radians
-            const halfFovAngle = THREE.MathUtils.degToRad(cam.fov / 2);
+            const halfFovAngle = THREE.MathUtils.degToRad(camera.fov / 2);
             const cosHalfFov = Math.cos(halfFovAngle);
             // cos(halfFov) = near / bottomDist
             // near = cos(halfFov) * bottomDist
@@ -718,32 +732,12 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
         }
         // Orthographic camera projection.
         else {
+            assert(camera instanceof THREE.OrthographicCamera, "Unsupported camera type.");
             viewRanges.near = planesDist.bottom;
             viewRanges.far = planesDist.top;
         }
 
-        // Compute target (focus) point distance.
-        const { distance } = MapViewUtils.getTargetAndDistance(
-            projection,
-            camera,
-            elevationProvider
-        );
-        // Clamp values to constraints.
-        const farMax = distance * this.farMaxRatio;
-        viewRanges.near = Math.max(viewRanges.near, this.nearMin);
-        viewRanges.far = Math.min(viewRanges.far, farMax);
-
-        // Apply margins
-        const nearFarMargin = (this.nearFarMarginRatio * (viewRanges.near + viewRanges.far)) / 2;
-        viewRanges.near = Math.max(viewRanges.near - nearFarMargin / 2, this.nearMin);
-        viewRanges.far = Math.max(
-            viewRanges.far + nearFarMargin / 2,
-            viewRanges.near + nearFarMargin
-        );
-        viewRanges.minimum = this.nearMin;
-        viewRanges.maximum = farMax;
-
-        return viewRanges;
+        return this.applyViewRangeConstraints(viewRanges, camera, projection, elevationProvider);
     }
 
     /** @override */
@@ -756,18 +750,23 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
         const viewRanges = { ...this.minimumViewRange };
 
         // Near plane calculus is pretty straightforward and does not depend on camera tilt:
-        const cameraAltitude = this.getCameraAltitude(camera, projection);
-        viewRanges.near = cameraAltitude - this.maxElevation;
+        viewRanges.near = projection.groundDistance(camera.position) - this.maxElevation;
 
         // Far plane calculation requires different approaches depending from camera projection:
         // - perspective
         // - orthographic
-        const cameraToOrigin = this.m_tmpVectors[0].copy(camera.position).negate();
         const r = EarthConstants.EQUATORIAL_RADIUS;
-        const d = cameraToOrigin.length();
-        let farPlane: number;
+        const maxR = r + this.maxElevation;
+        const d = camera.position.length();
+
         if (camera instanceof THREE.PerspectiveCamera) {
             const halfVerticalFovAngle = THREE.MathUtils.degToRad(camera.fov / 2);
+
+            // Now we need to account for camera tilt and frustum volume, so the longest
+            // frustum edge does not intersects with sphere, it takes the worst case
+            // scenario regardless of camera tilt, so may be improved little bit with more
+            // sophisticated algorithm.
+            viewRanges.near *= Math.cos(halfVerticalFovAngle);
 
             // Ratio of the depth of the camera compared to the distance between the center of the
             // screen and the middle of the top of the screen (here set to be value 1). We just need
@@ -776,52 +775,47 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
             const zLength = 1 / Math.tan(halfVerticalFovAngle);
 
             // Camera space direction vector along the top right frustum edge (of the camera).
-            const upperRightDirection = this.m_tmpVectors[2];
-            upperRightDirection.set(camera.aspect, 1, -zLength);
+            const upperRightDirection = this.m_tmpVectors[0]
+                .set(camera.aspect, 1, -zLength)
+                .applyMatrix4(camera.matrixWorld)
+                .sub(camera.position);
 
-            // Now we need to account for camera tilt and frustum volume, so the longest
-            // frustum edge does not intersects with sphere, it takes the worst case
-            // scenario regardless of camera tilt, so may be improved little bit with more
-            // sophisticated algorithm.
-            viewRanges.near *= Math.cos(halfVerticalFovAngle);
-            // Step-wise calculate angle between camera eye vector and tangent
-
-            // Calculate angle between surface normal(below camera position) and tangent.
-            const alpha = Math.asin(r / d);
-
-            // Calculate angle between look at and surface normal(below camera position)
-            const cameraPitch = this.getCameraPitch(cameraToOrigin, camera);
-
-            // Calculate angle between camera eye vector and tangent (center of the top of the
-            // screen)
-            const modifiedAlpha = Math.abs(alpha - cameraPitch);
-
-            // Transform the vector to world space
-            upperRightDirection.applyMatrix4(camera.matrixWorld);
-            // Transform the vector to be relative from the camera
-            upperRightDirection.sub(camera.position);
             // Ray must be given normalized vector, otherwise it won't work
-            upperRightDirection.normalize();
+            this.m_ray.set(camera.position, upperRightDirection.normalize());
 
-            this.m_ray.set(camera.position, upperRightDirection);
             // World space intersection with sphere or null
-            const worldSpaceFrustumSphereIntersection = this.m_ray.intersectSphere(
+            const fovSphereIntersection = this.m_ray.intersectSphere(
                 this.m_sphere,
                 this.m_tmpVectors[0]
             );
-            // Use tangent based far plane if horizon is within field of view
-            farPlane =
-                worldSpaceFrustumSphereIntersection === null
-                    ? this.getTangentBasedFarPlane(camera, d, r, modifiedAlpha)
-                    : this.getFarPlaneBasedOnFovIntersection(
-                          worldSpaceFrustumSphereIntersection,
-                          camera
-                      );
-        } else {
-            farPlane = this.getOrthoBasedFarPlane(d, r);
-        }
-        viewRanges.far = farPlane;
 
+            if (fovSphereIntersection === null) {
+                // Use tangent based far plane if horizon is within field of view
+                viewRanges.far = SphericalProj.getFarDistanceFromElevatedHorizon(
+                    camera,
+                    d,
+                    r,
+                    maxR
+                );
+            } else {
+                viewRanges.far = SphericalProj.getFarPlaneBasedOnFovIntersection(
+                    fovSphereIntersection,
+                    camera
+                );
+            }
+        } else {
+            viewRanges.far = this.getOrthoBasedFarPlane(d, r);
+        }
+
+        return this.applyViewRangeConstraints(viewRanges, camera, projection, elevationProvider);
+    }
+
+    private applyViewRangeConstraints(
+        viewRanges: ViewRanges,
+        camera: THREE.Camera,
+        projection: Projection,
+        elevationProvider?: ElevationProvider
+    ): ViewRanges {
         // Compute the focus point (target) distance for current camera and projection setup,
         // in a same way the MapView component does.
         const { distance } = MapViewUtils.getTargetAndDistance(
@@ -830,7 +824,7 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
             elevationProvider
         );
         // Apply the constraints.
-        const farMin = cameraAltitude - this.minElevation;
+        const farMin = projection.groundDistance(camera.position) - this.minElevation;
         const farMax = distance * this.farMaxRatio;
         viewRanges.near = Math.max(viewRanges.near, this.nearMin);
         viewRanges.far = THREE.MathUtils.clamp(viewRanges.far, farMin, farMax);
@@ -848,32 +842,6 @@ export class TiltViewClipPlanesEvaluator extends TopViewClipPlanesEvaluator {
         viewRanges.maximum = farMax;
 
         return viewRanges;
-    }
-
-    // Computes the far plane given the point where the upper right edg of the FOV intersects with
-    // the earth's sphere projected (dot product) along the camera's view direction.
-    protected getFarPlaneBasedOnFovIntersection(
-        worldSpaceIntersection: THREE.Vector3,
-        camera: THREE.PerspectiveCamera
-    ) {
-        const toIntersection = this.m_tmpVectors[1];
-        toIntersection.copy(worldSpaceIntersection);
-        toIntersection.sub(camera.position);
-
-        const cameraDirection = this.m_tmpVectors[2];
-        camera.getWorldDirection(cameraDirection);
-        cameraDirection.normalize();
-
-        return toIntersection.dot(cameraDirection);
-    }
-
-    private getCameraPitch(cameraToOrigin: THREE.Vector3, camera: THREE.PerspectiveCamera) {
-        cameraToOrigin.normalize();
-        const lookAt = camera.getWorldDirection(this.m_tmpVectors[1]).normalize();
-        const cosAlpha1 = cameraToOrigin.dot(lookAt);
-        const cameraPitch = Math.acos(THREE.MathUtils.clamp(cosAlpha1, -1.0, 1.0));
-
-        return cameraPitch;
     }
 }
 
