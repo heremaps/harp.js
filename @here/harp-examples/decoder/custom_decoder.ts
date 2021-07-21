@@ -77,7 +77,7 @@ class CustomDecoder extends ThemedTileDecoder {
         return Promise.resolve(decodedTile);
     }
 
-    private createLineGeometry(lineGroup: LineGroup, techniqueIndex: number) {
+    private createLineGeometry(lineGroup: LineGroup, techniqueIndex: number, id: number) {
         const { vertices, indices } = lineGroup;
         const buffer = new Float32Array(vertices).buffer as ArrayBuffer;
         const index = new Uint32Array(indices).buffer as ArrayBuffer;
@@ -103,7 +103,12 @@ class CustomDecoder extends ThemedTileDecoder {
                     technique: techniqueIndex
                 }
             ],
-            vertexAttributes: []
+            vertexAttributes: [],
+            objInfos: [
+                {
+                    id: id
+                }
+            ]
         };
 
         return geometry;
@@ -116,9 +121,13 @@ class CustomDecoder extends ThemedTileDecoder {
         projection: Projection,
         geometries: Geometry[]
     ): { minGeometryHeight: number; maxGeometryHeight: number } {
+        const row = data[0];
+        const column = data[1];
+        const level = data[2];
+        const id = TileKey.fromRowColumnLevel(row, column, level).mortonCode();
         // Setup an environment for this "layer". This does normally come from the data and should
         // contain all the attributes of a specific feature, so that it can be styled properly.
-        const env = new MapEnv({ layer: "line-layer" });
+        const env = new MapEnv({ layer: "line-layer", id: id });
 
         const techniques = styleSetEvaluator.getMatchingTechniques(env);
 
@@ -139,7 +148,7 @@ class CustomDecoder extends ThemedTileDecoder {
         lineGroup.add(worldCenter, worldPoints, projection);
 
         for (const technique of techniques) {
-            geometries.push(this.createLineGeometry(lineGroup, technique._index));
+            geometries.push(this.createLineGeometry(lineGroup, technique._index, id));
         }
 
         return { minGeometryHeight: MIN_GEOMETRY_HEIGHT, maxGeometryHeight: 0 };
@@ -152,18 +161,20 @@ class CustomDecoder extends ThemedTileDecoder {
         worldCenter: Vector3
     ) {
         // We assume that the input data is in relative-geo-coordinates
-        // (i.e. relative lat/long to the tile center). The first number is the
-        // number of points, the points are after that.
+        // (i.e. relative lat/long to the tile center). The first 3 numbers are taken for the id
+        // hence we start at the 3rd index. This has the number of points, the points are after
+        // that.
 
-        const numPoints = data[0];
+        const offset = 3;
+        const numPoints = data[offset];
         const tmpGeoPoint = geoCenter.clone();
         const tmpWorldPoint = new Vector3();
         const worldPoints = new Array<number>((numPoints / 2) * 3);
         for (let i = 0; i < numPoints; i += 2) {
             tmpGeoPoint.copy(geoCenter);
             // We add +1 to skip the first entry which has the number of points
-            tmpGeoPoint.latitude += data[i + 1];
-            tmpGeoPoint.longitude += data[i + 2];
+            tmpGeoPoint.latitude += data[offset + i + 1];
+            tmpGeoPoint.longitude += data[offset + i + 2];
             tmpGeoPoint.altitude = MIN_GEOMETRY_HEIGHT;
             projection.projectPoint(tmpGeoPoint, tmpWorldPoint);
             tmpWorldPoint.sub(worldCenter).toArray(worldPoints, (i / 2) * 3);
@@ -201,8 +212,9 @@ class CustomDecoder extends ThemedTileDecoder {
     }
 
     private processDependencies(data: Float32Array, dependencies: number[]) {
-        const numberPoints = data[0];
-        const numberDependenciesIndex = numberPoints + 1;
+        const initialOffset = 3;
+        const numberPoints = data[initialOffset];
+        const numberDependenciesIndex = numberPoints + 1 + initialOffset;
         // Add 1 because we need to skip the first element
         const numberDependencies = data[numberDependenciesIndex];
         // The format of each dependency is row, column, level, because we can't store the

@@ -90,8 +90,24 @@ export namespace TileDependenciesExample {
                 data.push(x, y);
             }
 
+            const { row, column, level } = tileKey;
+
+            // The format of this is:
+            // 1. row - which row number it is
+            // 2. column - which column the tile is
+            // 3. level - which level the row / column refer to
+            // 4. number of x y values (i.e. double the number of points)
+            // 5. list of x / y coordinates
+            // 6. number of dependent tiles
+            // 7. list of dependent tiles, note, we don't store morton codes, because these don't fit
+            // into 32 bits
+            // 8. row - the dependent row
+            // 9. column - the dependent column
+            // 10. level - the dependent level
             if (tileKey.mortonCode() === this.mainTileKey.mortonCode()) {
-                return Promise.resolve(new Float32Array([data.length, ...data, 0]));
+                return Promise.resolve(
+                    new Float32Array([row, column, level, data.length, ...data, 0])
+                );
             } else {
                 // Simulate that the tile contents spread over multiple tiles
                 if (
@@ -101,8 +117,10 @@ export namespace TileDependenciesExample {
                     tileKey.row === this.mainTileKey.row
                 ) {
                     //snippet:tile_dependencies.ts
-                    const { row, column, level } = this.mainTileKey;
-                    return Promise.resolve(new Float32Array([0, 1, row, column, level]));
+                    const { row: mainRow, column: mainColumn, level: mainLevel } = this.mainTileKey;
+                    return Promise.resolve(
+                        new Float32Array([row, column, level, 0, 1, mainRow, mainColumn, mainLevel])
+                    );
                     //end:tile_dependencies.ts
                 }
             }
@@ -146,7 +164,12 @@ export namespace TileDependenciesExample {
                         when: ["==", ["get", "layer"], "line-layer"],
                         technique: "solid-line",
                         attr: {
-                            color: "#ff0000",
+                            color: [
+                                "case",
+                                ["==", ["get", "id"], ["get", "selection", ["dynamic-properties"]]],
+                                "#009900",
+                                "#ffaa22"
+                            ],
                             lineWidth: "10px",
                             clipping: false
                         }
@@ -179,6 +202,7 @@ export namespace TileDependenciesExample {
 
     const element = document.getElementById("mouse-picked-result") as HTMLPreElement;
     let current: PickResult | undefined;
+    let currentPickedId: number = 0;
 
     function handlePick(mapViewUsed: MapView, x: number, y: number) {
         // get an array of intersection results from MapView
@@ -202,8 +226,10 @@ export namespace TileDependenciesExample {
         // Show helper box
         element.style.visibility = "visible";
 
+        currentPickedId = current.userData.id as number;
+        mapViewUsed.setDynamicProperty("selection", currentPickedId);
         // Display userData inside of helper box
-        element.innerText = JSON.stringify(current.point, undefined, 2);
+        element.innerText = JSON.stringify(currentPickedId, undefined, 2);
     }
 
     // Create a new MapView for the HTMLCanvasElement of the given id.
@@ -212,8 +238,7 @@ export namespace TileDependenciesExample {
 
         const map = new MapView({
             canvas,
-            theme: customTheme(),
-            decoderUrl: "decoder.bundle.js"
+            theme: customTheme()
         });
 
         CopyrightElementHandler.install("copyrightNotice", map);
@@ -275,6 +300,7 @@ export namespace TileDependenciesExample {
             map.clearTileCache();
             map.update();
         });
+        map.setDynamicProperty("selection", 0);
         return map;
     }
 
