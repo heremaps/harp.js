@@ -113,7 +113,26 @@ Create a file named `./harp-gl-decoders.js` to initialize the decoding service:
 ```javascript
 import { VectorTileDecoderService } from "@here/harp-vectortile-datasource/index-worker";
 
+// Make sure the path is correct
+self.importScripts("three.min.js");
+
 VectorTileDecoderService.start();
+```
+
+Note, if you are using ESM modules, you will need to use async, like:
+
+```javascript
+self.importScripts("https://unpkg.com/three/build/three.min.js");
+
+async function load() {
+  const { VectorTileDecoderService } = await import(
+    "@here/harp-vectortile-datasource/index-worker.js"
+  );
+
+  VectorTileDecoderService.start();
+}
+
+load();
 ```
 
 ### Create DOM container
