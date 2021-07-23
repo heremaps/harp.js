@@ -205,6 +205,7 @@ export class TextElementBuilder {
         points: THREE.Vector3 | THREE.Vector3[],
         tileOffset: number,
         dataSourceName: string,
+        dataSourceOrder: number,
         attributes?: AttributeMap,
         pathLengthSqr?: number,
         offsetDirection?: number
@@ -232,7 +233,8 @@ export class TextElementBuilder {
             this.m_fadeFar,
             tileOffset,
             offsetDirection,
-            dataSourceName
+            dataSourceName,
+            dataSourceOrder
         );
         textElement.minZoomLevel = this.m_minZoomLevel;
         textElement.maxZoomLevel = this.m_maxZoomLevel;

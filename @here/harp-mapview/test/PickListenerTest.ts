@@ -21,6 +21,7 @@ function createIntersection(dataSource: string | undefined): THREE.Intersection 
 describe("PickListener", function () {
     const point = new THREE.Vector3();
     const dataSourceName = "anonymous";
+    const dataSourceOrder = 0;
 
     describe("addResult", function () {
         it("adds all results for new features", function () {
@@ -34,7 +35,8 @@ describe("PickListener", function () {
                 featureId: 1,
                 userData,
                 intersection,
-                dataSourceName
+                dataSourceName,
+                dataSourceOrder
             });
 
             // different type
@@ -45,7 +47,8 @@ describe("PickListener", function () {
                 featureId: 1,
                 userData,
                 intersection,
-                dataSourceName
+                dataSourceName,
+                dataSourceOrder
             });
 
             // different data source.
@@ -56,7 +59,8 @@ describe("PickListener", function () {
                 featureId: 1,
                 userData,
                 intersection: createIntersection("ds2"),
-                dataSourceName
+                dataSourceName,
+                dataSourceOrder
             });
 
             // different feature id
@@ -67,7 +71,8 @@ describe("PickListener", function () {
                 featureId: 2,
                 userData,
                 intersection,
-                dataSourceName
+                dataSourceName,
+                dataSourceOrder
             });
 
             // no feature id and different user data.
@@ -77,7 +82,8 @@ describe("PickListener", function () {
                 distance: 1,
                 userData: {},
                 intersection,
-                dataSourceName
+                dataSourceName,
+                dataSourceOrder
             });
             listener.finish();
             expect(listener.results).to.have.lengthOf(5);
@@ -97,7 +103,8 @@ describe("PickListener", function () {
                     featureId: 1,
                     userData,
                     intersection,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 };
                 listener.addResult(firstResult);
 
@@ -107,7 +114,8 @@ describe("PickListener", function () {
                     distance: 2,
                     featureId: 1,
                     intersection,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 });
                 listener.finish();
 
@@ -124,7 +132,8 @@ describe("PickListener", function () {
                     distance: 1,
                     userData,
                     intersection,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 };
                 listener.addResult(firstResult);
 
@@ -134,7 +143,8 @@ describe("PickListener", function () {
                     distance: 2,
                     userData,
                     intersection,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 });
                 listener.finish();
 
@@ -154,7 +164,8 @@ describe("PickListener", function () {
                 featureId: 1,
                 userData,
                 intersection,
-                dataSourceName
+                dataSourceName,
+                dataSourceOrder
             });
 
             const closerResult: PickResult = {
@@ -163,7 +174,8 @@ describe("PickListener", function () {
                 distance: 1,
                 featureId: 1,
                 intersection,
-                dataSourceName
+                dataSourceName,
+                dataSourceOrder
             };
             listener.addResult(closerResult);
             listener.finish();
@@ -174,36 +186,138 @@ describe("PickListener", function () {
     });
 
     describe("finish", function () {
-        it("orders the results", function () {
+        it("orders the results by 'dataSourceOrder' first, then by 'distance' and 'renderOrder'", function () {
+            const expectedResults: PickResult[] = [
+                {
+                    type: PickObjectType.Point,
+                    point,
+                    distance: 10,
+                    renderOrder: 2,
+                    dataSourceName: "layer-2",
+                    dataSourceOrder: 2
+                },
+                {
+                    type: PickObjectType.Point,
+                    point,
+                    distance: 20,
+                    renderOrder: 1,
+                    dataSourceName: "layer-2",
+                    dataSourceOrder: 2
+                },
+                {
+                    type: PickObjectType.Point,
+                    point,
+                    distance: 5,
+                    renderOrder: 3,
+                    dataSourceName: "layer-1",
+                    dataSourceOrder: 1
+                },
+                {
+                    type: PickObjectType.Point,
+                    point,
+                    distance: 5,
+                    renderOrder: 2,
+                    dataSourceName: "layer-1",
+                    dataSourceOrder: 1
+                }
+            ];
+
+            const indexPermutations: number[][] = [
+                [0, 1, 2, 3],
+                [0, 1, 3, 2],
+                [0, 2, 1, 3],
+                [0, 2, 3, 1],
+                [0, 3, 1, 2],
+                [0, 3, 2, 1],
+                [1, 0, 2, 3],
+                [1, 0, 3, 2],
+                [1, 2, 0, 3],
+                [1, 2, 3, 0],
+                [1, 3, 0, 2],
+                [1, 3, 2, 0],
+                [2, 0, 1, 3],
+                [2, 0, 3, 1],
+                [2, 1, 0, 3],
+                [2, 1, 3, 0],
+                [2, 3, 0, 1],
+                [2, 3, 1, 0],
+                [3, 0, 1, 2],
+                [3, 0, 2, 1],
+                [3, 1, 0, 2],
+                [3, 1, 2, 0],
+                [3, 2, 0, 1],
+                [3, 2, 1, 0]
+            ];
+
+            indexPermutations.forEach(indexList => {
+                const listener = new PickListener();
+
+                indexList.forEach(i => listener.addResult(expectedResults[i]));
+                listener.finish();
+
+                expect(
+                    listener.results,
+                    `input index list: ${JSON.stringify(indexList)}`
+                ).to.have.ordered.members(expectedResults);
+            });
+        });
+
+        it("returns zero-distance (screen-space) results first", function () {
             const listener = new PickListener();
             const expectedResults: PickResult[] = [
                 {
                     type: PickObjectType.Point,
                     point,
                     distance: 0,
-                    renderOrder: 1,
-                    dataSourceName
-                },
-                {
-                    type: PickObjectType.Point,
-                    point,
-                    distance: 1,
-                    renderOrder: 3,
-                    dataSourceName
-                },
-                {
-                    type: PickObjectType.Point,
-                    point,
-                    distance: 1,
                     renderOrder: 2,
-                    dataSourceName
+                    dataSourceName: "layer-2",
+                    dataSourceOrder: 2
+                },
+                {
+                    type: PickObjectType.Point,
+                    point,
+                    distance: 0,
+                    renderOrder: 3,
+                    dataSourceName: "layer-1",
+                    dataSourceOrder: 1
+                },
+                {
+                    type: PickObjectType.Point,
+                    point,
+                    distance: 24,
+                    renderOrder: 20,
+                    dataSourceName: "layer-2",
+                    dataSourceOrder: 2
+                },
+                {
+                    type: PickObjectType.Point,
+                    point,
+                    distance: 24,
+                    renderOrder: 19,
+                    dataSourceName: "layer-2",
+                    dataSourceOrder: 2
+                },
+                {
+                    type: PickObjectType.Point,
+                    point,
+                    distance: 200,
+                    renderOrder: 4,
+                    dataSourceName: "layer-0",
+                    dataSourceOrder: 0
                 }
             ];
+
             listener.addResult(expectedResults[2]);
+            listener.addResult(expectedResults[4]);
             listener.addResult(expectedResults[1]);
+            listener.addResult(expectedResults[3]);
             listener.addResult(expectedResults[0]);
             listener.finish();
 
+            // 0 and 1 are ranked higher because of 'distance: 0'
+            // 0 precedes 1 because of higher 'dataSourceOrder'
+            // 2 precedes 3 because of higher 'renderOrder' while 'dataSourceOrder' and 'distance' are same
+            // 3 precedes 4 because of higher 'dataSourceOrder'
             expect(listener.results).to.have.ordered.members(expectedResults);
         });
 
@@ -214,16 +328,18 @@ describe("PickListener", function () {
                 {
                     type: PickObjectType.Point,
                     point,
-                    distance: eps,
+                    distance: 300 + eps,
                     renderOrder: 2,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 },
                 {
                     type: PickObjectType.Point,
                     point,
-                    distance: 0,
+                    distance: 300,
                     renderOrder: 1,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 }
             ];
             listener.addResult(expectedResults[1]);
@@ -242,14 +358,16 @@ describe("PickListener", function () {
                     point,
                     distance: 0,
                     renderOrder: 1,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 },
                 {
                     type: PickObjectType.Point,
                     point,
                     distance: 1,
                     renderOrder: 3,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 }
             ];
             listener.addResult(results[1]);
@@ -262,12 +380,12 @@ describe("PickListener", function () {
     });
 
     describe("closestResult", function () {
-        it("returns undefined if there's no results", function () {
+        it("returns undefined if there are no results", function () {
             const listener = new PickListener();
             expect(listener.closestResult).to.be.undefined;
         });
 
-        it("returns closest result when there's some results", function () {
+        it("returns closest result when there are some results", function () {
             const listener = new PickListener();
             const results: PickResult[] = [
                 {
@@ -275,14 +393,16 @@ describe("PickListener", function () {
                     point,
                     distance: 0,
                     renderOrder: 1,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 },
                 {
                     type: PickObjectType.Point,
                     point,
                     distance: 1,
                     renderOrder: 3,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 }
             ];
             listener.addResult(results[1]);
@@ -294,12 +414,12 @@ describe("PickListener", function () {
     });
 
     describe("furthestResult", function () {
-        it("returns undefined if there's no results", function () {
+        it("returns undefined if there are no results", function () {
             const listener = new PickListener();
             expect(listener.furthestResult).to.be.undefined;
         });
 
-        it("returns furtherst result when there's some results", function () {
+        it("returns furthest result when there are some results", function () {
             const listener = new PickListener();
             const results: PickResult[] = [
                 {
@@ -307,14 +427,16 @@ describe("PickListener", function () {
                     point,
                     distance: 0,
                     renderOrder: 1,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 },
                 {
                     type: PickObjectType.Point,
                     point,
                     distance: 1,
                     renderOrder: 3,
-                    dataSourceName
+                    dataSourceName,
+                    dataSourceOrder
                 }
             ];
             listener.addResult(results[1]);
